@@ -1,25 +1,132 @@
----
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
----
+#Reproducible Research: Peer-graded Assignment: Course project 1
+================================================================
+
+##Explicitely setting the defaults and loading R packages
 
 
-## Loading and preprocessing the data
+```{r setoptions, echo=TRUE, results="asis"}
+
+library(ggplot2)
+library (dplyr)
+library(lattice)
+
+```
+
+##1.Loading the data
+
+It is assumed that the Working Directory is set correctly, i.e. is set to where the file "repdata_data_activity.zip" is saved. 
+
+```{r Question1}
+
+unzip(zipfile="repdata_data_activity.zip")
+
+data <- read.csv("activity.csv")
+
+```
+
+##2. & 3. Histogram of the total number of steps taken each day, and mean and median
+
+```{r Question2-3}
+
+dayly.steps <- tapply(data$steps, data$date, FUN=sum, na.rm=TRUE)
+
+qplot(dayly.steps, binwidth=1000, xlab="Total Number of Steps taken each Day")
+
+mean(dayly.steps, na.rm=TRUE)
+
+median(dayly.steps, na.rm=TRUE)
+
+```
+
+##4. Time series plot of the average number of steps taken
+
+```{r Question4}
+
+average.steps <- aggregate(x=list(steps=data$steps), by=list(interval=data$interval), FUN=mean, na.rm=TRUE)
+ggplot(data=average.steps, aes(x=interval, y=steps)) +
+    geom_line() +
+    xlab("5-Minute Interval") +
+    ylab("Average Number of Steps taken")
+
+```
+
+##5. The 5-minute interval that, on average, contains the maximum number of steps
+
+```{r Question5}
+
+average.steps[which.max(average.steps$steps),]
+
+```
+
+##6. Code to describe and show a strategy for imputing missing data
 
 
+This is the percentage of intervals that have no values for the number of steps in that interval:
 
-## What is mean total number of steps taken per day?
+```{r}
 
+mean(is.na(data$steps))*100
 
+```
 
-## What is the average daily activity pattern?
+This is the total number of intervals that have no values for the number of steps in that interval:
 
+```{r}
 
+sum(is.na(data$steps))
 
-## Imputing missing values
+```
 
+We will replace each missing value with the mean.
 
+```{r}
 
-## Are there differences in activity patterns between weekdays and weekends?
+cleaned.data<-data
+
+for (row.num in 1:nrow(cleaned.data)) {
+
+    if (is.na(cleaned.data[row.num, "steps"])) {
+
+        interval.sgn<- cleaned.data[row.num, "interval"]
+        interval.sgn.ind <- which(average.steps[, "interval"] == interval.sgn)
+        interval.steps.mean <- average.steps[interval.sgn.ind, "steps"]
+        cleaned.data[row.num, "steps"] <- interval.steps.mean
+         }
+}
+
+```
+
+##7. Histogram of the total number of steps taken each day after missing values are imputed
+
+```{r Question7}
+
+steps.cleaned <- tapply(cleaned.data$steps, cleaned.data$date, FUN=sum)
+
+qplot(steps.cleaned, binwidth=1000, xlab="Total Number of steps per Day")
+
+mean(steps.cleaned)
+median(steps.cleaned)
+
+```
+##8. Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+
+```{r Question8}
+
+Sys.setenv(LANGUAGE = "en")
+Sys.setlocale("LC_TIME", "English")
+
+days.of.week <- weekdays(as.Date(cleaned.data$date))
+
+cleaned.data$day.type <- sapply(days.of.week, function(which.day) {
+    if (which.day %in% c("Saturday", "Sunday")) {
+        return("weekend")
+    } else {
+        return("weekday")
+           }
+    })
+
+steps.per.daytype <- cleaned.data %>% group_by(interval, day.type) %>% summarise(avg.steps = mean(steps))
+
+xyplot(avg.steps ~ interval | day.type, data = steps.per.daytype, type = "b", layout = c(1, 2))
+
+```
